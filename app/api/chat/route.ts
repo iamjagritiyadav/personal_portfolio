@@ -3,9 +3,10 @@ import {
   convertToModelMessages,
   streamText,
   UIMessage,
-} from "ai"
+} from "ai";
+import { google } from "@ai-sdk/google";
 
-export const maxDuration = 30
+export const maxDuration = 30;
 
 const RESUME_CONTEXT = `
 # JAGRITI YADAV — Resume & Profile
@@ -99,7 +100,7 @@ AI/ML undergraduate with hands-on experience building and evaluating end-to-end 
 - Face & Emotion Detection
 - Healthcare AI
 - Responsible AI
-`
+`;
 
 const SYSTEM_PROMPT = `You are an AI assistant embedded on Jagriti Yadav's personal portfolio website. Your ONLY purpose is to answer questions about Jagriti Yadav based on the resume and profile information provided below.
 
@@ -114,22 +115,31 @@ STRICT RULES:
 RESUME AND PROFILE INFORMATION:
 ${RESUME_CONTEXT}
 
-Remember: You are ONLY a portfolio assistant for Jagriti Yadav. Stay strictly within scope.`
+Remember: You are ONLY a portfolio assistant for Jagriti Yadav. Stay strictly within scope.`;
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json()
+  try {
+    const { messages }: { messages: UIMessage[] } = await req.json();
 
-  const result = streamText({
-    model: "openai/gpt-4o-mini",
-    system: SYSTEM_PROMPT,
-    messages: await convertToModelMessages(messages),
-    temperature: 0.3,
-    maxOutputTokens: 500,
-    abortSignal: req.signal,
-  })
+    // Verify API Key exists
+    if (!process.env.GOOGLE_API_KEY) {
+      return new Response("Configuration Error: API Key missing.", { status: 500 });
+    }
 
-  return result.toUIMessageStreamResponse({
-    originalMessages: messages,
-    consumeSseStream: consumeStream,
-  })
+    const result = await streamText({
+      model: google("gemini-1.5-flash"),
+      system: SYSTEM_PROMPT,
+      messages: convertToModelMessages(messages),
+      temperature: 0.3,
+      maxTokens: 500,
+    });
+
+    return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+      consumeSseStream: consumeStream,
+    });
+  } catch (error) {
+    console.error("Chat Error:", error);
+    return new Response("An error occurred during the chat request.", { status: 500 });
+  }
 }
